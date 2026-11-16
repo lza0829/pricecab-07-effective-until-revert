@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.db import connect
+from app.repositories import settings as settings_repo
 from app.repositories import skus as sku_repo
 from app.repositories import tickets as ticket_repo
 
@@ -37,12 +38,15 @@ def get_ticket(ticket_id: int) -> dict[str, Any]:
 def create_ticket(body: dict[str, Any]) -> dict[str, Any]:
     title = (body.get("title") or "").strip()
     effective_at = (body.get("effective_at") or "").strip()
+    effective_until = (body.get("effective_until") or "").strip() or None
     note = (body.get("note") or None)
     lines = body.get("lines") or []
     if not title:
         raise HTTPException(400, "标题必填")
     if not effective_at:
         raise HTTPException(400, "生效时刻必填")
+    if effective_until and effective_until <= effective_at:
+        raise HTTPException(400, "生效截止须晚于生效时刻")
     if not lines:
         raise HTTPException(400, "至少一行改价明细")
 
@@ -54,6 +58,7 @@ def create_ticket(body: dict[str, Any]) -> dict[str, Any]:
             ticket_no=ticket_no,
             title=title,
             effective_at=effective_at,
+            effective_until=effective_until,
             note=note,
             created_at=_now(),
         )
@@ -80,6 +85,42 @@ def create_ticket(body: dict[str, Any]) -> dict[str, Any]:
             )
         conn.commit()
         return get_ticket(tid)
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def void_ticket(ticket_id: int) -> dict[str, Any]:
+    """Void a ticket. Voiding before its cutoff cancels any future revert;
+    once the cutoff has passed the ticket must go through a revert batch."""
+    conn = connect(immediate=True)
+    try:
+        t = ticket_repo.get_ticket(conn, ticket_id)
+        if not t:
+            raise HTTPException(404, "改价单不存在")
+        status = t["status"]
+        if status == "void":
+            raise HTTPException(409, "改价单已作废")
+        if status == "reverted":
+            raise HTTPException(409, "改价单已回落，不能作废")
+        if status == "expired":
+            raise HTTPException(409, "改价单已过期未应用，不能作废")
+        clock = settings_repo.get(conn, "business_clock")
+        if (
+            status == "applied"
+            and t["effective_until"]
+            and clock
+            and clock >= t["effective_until"]
+        ):
+            raise HTTPException(409, "已过生效截止，须走回落批次，不能作废")
+        ticket_repo.mark_void(conn, ticket_id, voided_at=_now())
+        conn.commit()
+        return get_ticket(ticket_id)
     except HTTPException:
         conn.rollback()
         raise

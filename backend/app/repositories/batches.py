@@ -4,15 +4,22 @@ import sqlite3
 from typing import Any
 
 
-def next_batch_no(conn: sqlite3.Connection) -> str:
-    n = conn.execute("SELECT COUNT(*) c FROM apply_batches").fetchone()["c"] + 1
-    return f"AB-{n:04d}"
+BATCH_PREFIX = {"apply": "AB", "revert": "RB"}
+
+
+def next_batch_no(conn: sqlite3.Connection, kind: str = "apply") -> str:
+    prefix = BATCH_PREFIX.get(kind, "AB")
+    n = conn.execute(
+        "SELECT COUNT(*) c FROM apply_batches WHERE kind=?", (kind,)
+    ).fetchone()["c"] + 1
+    return f"{prefix}-{n:04d}"
 
 
 def create_batch(
     conn: sqlite3.Connection,
     *,
     batch_no: str,
+    kind: str,
     clock_at: str,
     ticket_count: int,
     line_count: int,
@@ -21,10 +28,10 @@ def create_batch(
 ) -> int:
     cur = conn.execute(
         '''
-        INSERT INTO apply_batches(batch_no, clock_at, ticket_count, line_count, status, created_at)
-        VALUES (?,?,?,?,?,?)
+        INSERT INTO apply_batches(batch_no, kind, clock_at, ticket_count, line_count, status, created_at)
+        VALUES (?,?,?,?,?,?,?)
         ''',
-        (batch_no, clock_at, ticket_count, line_count, status, created_at),
+        (batch_no, kind, clock_at, ticket_count, line_count, status, created_at),
     )
     return int(cur.lastrowid)
 

@@ -6,6 +6,14 @@ const book = ref([])
 const history = ref([])
 const err = ref('')
 
+function sourceLabel(r) {
+  if (r.source_kind === 'revert') {
+    return r.source_ticket_no ? `回落→${r.source_ticket_no}` : '牌价回落'
+  }
+  if (r.source_kind === 'seed') return '初始牌价'
+  return r.source_ticket_no || '初始'
+}
+
 onMounted(async () => {
   try {
     book.value = await api.priceBook()
@@ -19,7 +27,7 @@ onMounted(async () => {
 <template>
   <section class="hero">
     <h1>现行价签</h1>
-    <p>价签本反映已生效的最新价格；下方为历史生效记录。</p>
+    <p>价签本反映已生效的最新价格；下方为历史生效记录（含回落行）。</p>
   </section>
   <p v-if="err" class="msg err">{{ err }}</p>
 
@@ -27,7 +35,7 @@ onMounted(async () => {
     <h2>价签本</h2>
     <table>
       <thead>
-        <tr><th>SKU</th><th>品名</th><th>分类</th><th>现行价</th><th>来源单</th><th>生效时刻</th><th>更新</th></tr>
+        <tr><th>SKU</th><th>品名</th><th>分类</th><th>现行价</th><th>来源</th><th>生效时刻</th><th>更新</th></tr>
       </thead>
       <tbody>
         <tr v-for="r in book" :key="r.sku_code">
@@ -35,7 +43,7 @@ onMounted(async () => {
           <td>{{ r.title }}</td>
           <td>{{ r.category }}</td>
           <td>{{ r.current_price }}</td>
-          <td>{{ r.source_ticket_no || '初始' }}</td>
+          <td><span class="tag" :class="r.source_kind === 'revert' ? 'warn' : 'muted'">{{ sourceLabel(r) }}</span></td>
           <td>{{ r.effective_at }}</td>
           <td>{{ r.updated_at }}</td>
         </tr>
@@ -47,13 +55,13 @@ onMounted(async () => {
     <h2>价格历史</h2>
     <table>
       <thead>
-        <tr><th>SKU</th><th>价格</th><th>来源单</th><th>生效时刻</th><th>记录时间</th></tr>
+        <tr><th>SKU</th><th>价格</th><th>来源</th><th>生效时刻</th><th>记录时间</th></tr>
       </thead>
       <tbody>
         <tr v-for="h in history" :key="h.id">
           <td>{{ h.sku_code }}</td>
           <td>{{ h.price }}</td>
-          <td>{{ h.source_ticket_no || '初始' }}</td>
+          <td><span class="tag" :class="h.source_kind === 'revert' ? 'warn' : 'muted'">{{ sourceLabel(h) }}</span></td>
           <td>{{ h.effective_at }}</td>
           <td>{{ h.recorded_at }}</td>
         </tr>

@@ -9,11 +9,27 @@ const err = ref('')
 const form = reactive({
   title: '',
   effective_at: '2026-11-16T10:00:00Z',
+  effective_until: '',
   note: '',
   sku_code: '',
   new_price: '',
 })
 const lines = ref([])
+
+const STATUS_LABEL = {
+  scheduled: '待生效',
+  applied: '已应用',
+  reverted: '已回落',
+  expired: '已过期',
+  void: '已作废',
+}
+
+function statusClass(s) {
+  if (s === 'applied') return 'ok'
+  if (s === 'scheduled') return 'warn'
+  if (s === 'expired') return 'bad'
+  return 'muted'
+}
 
 async function refresh() {
   skus.value = await api.skus()
@@ -42,13 +58,27 @@ async function submit() {
     const t = await api.createTicket({
       title: form.title,
       effective_at: form.effective_at,
+      effective_until: form.effective_until || null,
       note: form.note || null,
       lines: lines.value,
     })
     msg.value = `已创建 ${t.ticket_no}`
     form.title = ''
     form.note = ''
+    form.effective_until = ''
     lines.value = []
+    await refresh()
+  } catch (e) {
+    err.value = e.message
+  }
+}
+
+async function voidTicket(t) {
+  msg.value = ''
+  err.value = ''
+  try {
+    await api.voidTicket(t.id)
+    msg.value = `已作废 ${t.ticket_no}（截止前作废将取消未来回落）`
     await refresh()
   } catch (e) {
     err.value = e.message
@@ -61,7 +91,7 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
 <template>
   <section class="hero">
     <h1>改价单</h1>
-    <p>为商品预约新价与生效时刻。未到业务钟前不会写入现行价签。</p>
+    <p>为商品预约新价与生效时刻，可选生效截止。未到业务钟前不会写入现行价签；过了截止的已应用单须走回落批次。</p>
   </section>
 
   <div class="panel">
@@ -69,6 +99,7 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
     <div class="row">
       <div class="field"><label>标题</label><input v-model="form.title" placeholder="例如：午间茶饮促销售价" /></div>
       <div class="field"><label>生效时刻 (UTC)</label><input v-model="form.effective_at" /></div>
+      <div class="field"><label>生效截止 (UTC，可空)</label><input v-model="form.effective_until" placeholder="留空 = 不回落" /></div>
       <div class="field" style="flex:1"><label>备注</label><input v-model="form.note" /></div>
     </div>
     <div class="row">
@@ -104,18 +135,28 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
     <h2>改价单列表</h2>
     <table>
       <thead>
-        <tr><th>单号</th><th>标题</th><th>生效时刻</th><th>行数</th><th>状态</th><th>已应用批次</th></tr>
+        <tr><th>单号</th><th>标题</th><th>生效时刻</th><th>生效截止</th><th>行数</th><th>状态</th><th>应用批次</th><th>回落批次</th><th></th></tr>
       </thead>
       <tbody>
         <tr v-for="t in tickets" :key="t.id">
           <td>{{ t.ticket_no }}</td>
           <td>{{ t.title }}</td>
           <td>{{ t.effective_at }}</td>
+          <td>{{ t.effective_until || '—' }}</td>
           <td>{{ t.line_count }}</td>
           <td>
-            <span class="tag" :class="t.status === 'applied' ? 'ok' : 'warn'">{{ t.status }}</span>
+            <span class="tag" :class="statusClass(t.status)">{{ STATUS_LABEL[t.status] || t.status }}</span>
           </td>
           <td>{{ t.apply_batch_id || '—' }}</td>
+          <td>{{ t.revert_batch_id || '—' }}</td>
+          <td>
+            <button
+              v-if="t.status === 'scheduled' || t.status === 'applied'"
+              class="btn ghost"
+              type="button"
+              @click="voidTicket(t)"
+            >作废</button>
+          </td>
         </tr>
       </tbody>
     </table>

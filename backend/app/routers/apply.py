@@ -28,3 +28,8 @@ def list_batches():
 @router.post("/due")
 def apply_due():
     return svc.apply_due()
+
+
+@router.post("/revert")
+def revert_expired():
+    return svc.revert_expired()

@@ -19,6 +19,7 @@ def dashboard() -> dict[str, Any]:
             "project": "pricecab",
             "name": "价签柜",
             "business_clock": clock,
+            "revert_strategy": settings_repo.get(conn, "revert_strategy", "list_price"),
             "sku_count": conn.execute("SELECT COUNT(*) c FROM skus").fetchone()["c"],
             "ticket_count": conn.execute("SELECT COUNT(*) c FROM price_tickets").fetchone()["c"],
             "scheduled_count": conn.execute(
@@ -27,10 +28,14 @@ def dashboard() -> dict[str, Any]:
             "applied_count": conn.execute(
                 "SELECT COUNT(*) c FROM price_tickets WHERE status='applied'"
             ).fetchone()["c"],
+            "reverted_count": conn.execute(
+                "SELECT COUNT(*) c FROM price_tickets WHERE status='reverted'"
+            ).fetchone()["c"],
             "book_count": conn.execute("SELECT COUNT(*) c FROM price_book").fetchone()["c"],
             "sale_count": conn.execute("SELECT COUNT(*) c FROM sales_fixture").fetchone()["c"],
             "batch_count": conn.execute("SELECT COUNT(*) c FROM apply_batches").fetchone()["c"],
             "due_now": len(ticket_repo.due_tickets(conn, clock or "")),
+            "due_revert": len(ticket_repo.applied_past_cutoff(conn, clock or "")),
         }
     finally:
         conn.close()

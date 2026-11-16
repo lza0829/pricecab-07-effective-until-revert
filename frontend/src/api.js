@@ -22,10 +22,14 @@ export const api = {
   tickets: () => request('/api/tickets'),
   ticket: (id) => request(`/api/tickets/${id}`),
   createTicket: (body) => request('/api/tickets', { method: 'POST', body: JSON.stringify(body) }),
+  voidTicket: (id) => request(`/api/tickets/${id}/void`, { method: 'POST' }),
   clock: () => request('/api/apply/clock'),
   setClock: (business_clock) =>
     request('/api/apply/clock', { method: 'PUT', body: JSON.stringify({ business_clock }) }),
   applyDue: () => request('/api/apply/due', { method: 'POST' }),
+  revertDue: () => request('/api/apply/revert', { method: 'POST' }),
+  setRevertStrategy: (strategy) =>
+    request('/api/settings/revert-strategy', { method: 'PUT', body: JSON.stringify({ strategy }) }),
   batches: () => request('/api/apply/batches'),
   priceBook: () => request('/api/prices/book'),
   history: (sku) => request(sku ? `/api/prices/history?sku_code=${encodeURIComponent(sku)}` : '/api/prices/history'),

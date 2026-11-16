@@ -16,6 +16,7 @@ class TicketLineIn(BaseModel):
 class TicketCreateIn(BaseModel):
     title: str
     effective_at: str
+    effective_until: str | None = None
     note: str | None = None
     lines: list[TicketLineIn] = Field(default_factory=list)
 
@@ -33,3 +34,8 @@ def get_ticket(ticket_id: int):
 @router.post("")
 def create_ticket(body: TicketCreateIn):
     return svc.create_ticket(body.model_dump())
+
+
+@router.post("/{ticket_id}/void")
+def void_ticket(ticket_id: int):
+    return svc.void_ticket(ticket_id)

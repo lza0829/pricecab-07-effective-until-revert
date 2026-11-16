@@ -8,7 +8,8 @@ def list_skus(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         '''
         SELECT s.id, s.sku_code, s.title, s.category, s.list_price, s.enabled,
-               b.current_price, b.source_ticket_no, b.effective_at AS price_effective_at
+               b.current_price, b.source_ticket_no, b.source_kind,
+               b.effective_at AS price_effective_at
         FROM skus s
         LEFT JOIN price_book b ON b.sku_code = s.sku_code
         ORDER BY s.sku_code
